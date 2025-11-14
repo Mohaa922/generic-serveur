@@ -1,0 +1,46 @@
+services:
+  php-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: php-server
+    ports:
+      - "${APP_PORT}:80"
+    volumes:
+      - ./www:/www
+    env_file:
+      - .env.compose
+    depends_on:
+      - mysql-server
+
+  mysql-server:
+    image: mysql:8.0
+    container_name: mysql-server
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT}:3306"
+
+  phpmyadmin:
+    container_name: phpmyadmin
+    image: phpmyadmin/phpmyadmin:latest
+    restart: unless-stopped
+    ports:
+      - "${PMA_HTTP_PORT:-8081}:80"
+    env_file:
+      - .env.compose
+    environment:
+      PMA_HOST: mysql-server        
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      - mysql-server               
+
+volumes:
+  mysql_data:
