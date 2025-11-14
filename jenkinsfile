@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    options {
+        // On gère nous-même les checkouts
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        APP_BRANCH = 'app'   // branche contenant le code Symfony
+        APP_DIR    = 'www'   // dossier où on veut mettre le code
+    }
+
+    stages {
+
+        stage('Checkout infra (branche serveur)') {
+            steps {
+                echo "==> Checkout de la branche serveur (infra)"
+                checkout scm
+            }
+        }
+
+        stage('Checkout app (branche app)') {
+            steps {
+                script {
+                    echo "==> Nettoyage ancien app_src"
+                    bat 'if exist app_src rmdir /S /Q app_src'
+
+                    echo "==> Récupération de l\'URL du remote Git"
+                    def repoUrl = bat(
+                        returnStdout: true,
+                        script: 'git config --get remote.origin.url'
+                    ).trim()
+
+                    echo "==> Clonage de la branche ${env.APP_BRANCH} dans app_src/"
+                    bat "git clone --branch ${env.APP_BRANCH} --single-branch \"${repoUrl}\" app_src"
+                }
+            }
+        }
+
+        stage('Copie du code dans www/') {
+            steps {
+                script {
+                    echo "==> Nettoyage du dossier ${env.APP_DIR}"
+                    bat "if exist ${env.APP_DIR} rmdir /S /Q ${env.APP_DIR}"
+                    bat "mkdir ${env.APP_DIR}"
+
+                    echo "==> Copie du code Symfony de app_src vers ${env.APP_DIR}"
+                    bat "xcopy app_src ${env.APP_DIR} /E /I /Y"
+                }
+            }
+        }
+
+        stage('Docker Compose up') {
+            steps {
+                echo "==> Restart du stack Docker"
+                bat '''
+                    docker compose --env-file .env.compose down
+                    docker compose --env-file .env.compose up --build -d
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Déploiement OK"
+        }
+        failure {
+            echo "❌ Erreur dans le pipeline, voir les logs"
+            bat 'docker compose logs php-server || exit 0'
+        }
+    }
+}
