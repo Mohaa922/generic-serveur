@@ -1,4 +1,4 @@
-services:
+services: 
   php-server:
     build:
       context: .
@@ -7,7 +7,8 @@ services:
     ports:
       - "${APP_PORT}:80"
     volumes:
-      - ./www:/www
+      - ./www:/www              
+      - symfony_var:/www/var    
     env_file:
       - .env.compose
     depends_on:
@@ -44,3 +45,4 @@ services:
 
 volumes:
   mysql_data:
+  symfony_var:
