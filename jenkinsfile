@@ -47,6 +47,19 @@ pipeline {
             }
         }
 
+        
+        stage('Composer install') {
+            steps {
+                script {
+                    echo "==> Installation des dépendances PHP (composer install)"
+                    bat '''
+                    cd "%WORKSPACE%\\www"
+                    composer install --no-interaction --prefer-dist --no-progress
+                    '''
+                }
+            }
+        }
+
         stage('Docker Compose up') {
             steps {
                 script {
