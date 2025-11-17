@@ -2,47 +2,47 @@ pipeline {
     agent any
 
     environment {
-        APP_BRANCH = 'app'
+        APP_BRANCH    = 'app'
         SERVER_BRANCH = 'serveur'
+        REPO_URL      = 'https://github.com/Mohaa922/generic-serveur.git'
     }
 
     stages {
 
         stage('Checkout infra (branche serveur)') {
             steps {
-                echo "==> Checkout branche serveur"
+                echo "==> Checkout branche serveur (infra)"
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: "*/${SERVER_BRANCH}"]],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/Mohaa922/generic-serveur.git'
+                        url: "${REPO_URL}"
                     ]]
                 ])
             }
         }
 
-        stage('Checkout app (branche app)') {
+        stage('Checkout app et préparation de www/') {
             steps {
                 script {
-                    echo "==> Suppression ancien app_src/"
-                    bat 'if exist app_src rmdir /S /Q app_src'
-
-                    echo "==> Clone branche app"
+                    echo "==> Nettoyage ancien app_src"
                     bat '''
-                        git clone --branch app --single-branch https://github.com/Mohaa922/generic-serveur.git app_src
+                    cd "%WORKSPACE%"
+                    if exist app_src rmdir /S /Q app_src
                     '''
-                }
-            }
-        }
 
-        stage('Copie du code dans www/') {
-            steps {
-                script {
-                    echo "==> Nettoyage www/"
-                    bat 'if exist www rmdir /S /Q www'
+                    echo "==> Clone de la branche app dans app_src/"
+                    bat """
+                    cd "%WORKSPACE%"
+                    git clone --branch ${APP_BRANCH} --single-branch ${REPO_URL} app_src
+                    """
 
-                    echo "==> Copie du contenu de app_src dans www/"
-                    bat 'xcopy app_src www /E /I'
+                    echo "==> Préparation du dossier www/ pour le conteneur"
+                    bat '''
+                    cd "%WORKSPACE%"
+                    if exist www rmdir /S /Q www
+                    xcopy app_src\\www www /E /I /Y
+                    '''
                 }
             }
         }
@@ -50,20 +50,23 @@ pipeline {
         stage('Docker Compose up') {
             steps {
                 script {
-                    echo "==> Démarrage du serveur Docker"
-                    bat 'docker compose down'
-                    bat 'docker compose up --build -d'
+                    echo "==> Restart du stack Docker avec .env.compose"
+                    bat '''
+                    cd "%WORKSPACE%"
+                    docker compose -f docker-compose.yaml --env-file .env.compose down
+                    docker compose -f docker-compose.yaml --env-file .env.compose up --build -d
+                    '''
                 }
             }
         }
     }
 
     post {
-        failure {
-            echo "❌ Le pipeline a échoué"
-        }
         success {
             echo "✅ Déploiement terminé avec succès !"
+        }
+        failure {
+            echo "❌ Le pipeline a échoué"
         }
     }
 }
